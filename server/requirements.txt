@@ -17,13 +17,6 @@ Authlib
 requests
 python-socketio
 simple-websocket
-torch
-transformers
-sentence-transformers
-spacy
-PyMuPDF
-langchain
-google-generativeai
 redis
 firebase_admin
 openai
