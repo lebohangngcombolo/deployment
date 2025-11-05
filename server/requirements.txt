@@ -28,3 +28,4 @@ redis
 firebase_admin
 openai
 Flask-SocketIO
+pyotp
