@@ -27,3 +27,4 @@ google-generativeai
 redis
 firebase_admin
 openai
+Flask-SocketIO
