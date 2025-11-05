@@ -24,3 +24,6 @@ spacy
 PyMuPDF
 langchain
 google-generativeai
+redis
+firebase_admin
+openai
