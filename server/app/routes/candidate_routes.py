@@ -121,12 +121,11 @@ def upload_resume(application_id):
 
         file = request.files["resume"]
 
-        # --- Upload to Cloudinary ---
-        resume_url = HybridResumeAnalyzer.upload_cv(file)
+        resume_url = upload_cv_to_cloudinary(file)
         if not resume_url:
             return jsonify({"error": "Failed to upload resume"}), 500
 
-        # --- Extract PDF text if needed ---
+        # Extract PDF text if needed
         resume_text = request.form.get("resume_text", "")
         if not resume_text and file.filename.lower().endswith(".pdf"):
             file.stream.seek(0)
@@ -135,18 +134,15 @@ def upload_resume(application_id):
             for page in pdf_doc:
                 resume_text += page.get_text()
 
-        # --- Hybrid Resume Analysis ---
-        analyzer = HybridResumeAnalyzer()
-        parser_result = analyzer.analyse(resume_text, job.id)
+        parser_result = analyse_resume_openrouter(resume_text, job_id=job.id)
 
-        # --- Save results ---
         application.resume_url = resume_url
         application.cv_score = parser_result.get("match_score", 0)
         application.cv_parser_result = parser_result
         application.recommendation = parser_result.get("recommendation", "")
         db.session.commit()
 
-        # --- Notify admins ---
+        # Notify admins
         admins = User.query.filter_by(role="admin").all()
         for admin in admins:
             notif = Notification(
