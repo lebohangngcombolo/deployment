@@ -6,6 +6,8 @@ from .extensions import (
 )
 from .models import *
 from .routes import auth, admin_routes, candidate_routes, ai_routes
+from .services.email_service import EmailService  # <-- import EmailService
+
 
 def create_app():
     app = Flask(__name__)
@@ -30,6 +32,9 @@ def create_app():
         supports_credentials=True,
     )
 
+    # ---------------- Initialize EmailService ----------------
+    EmailService.init_app(app)  # <-- this fixes the "EmailService not initialized" error
+
     # ---------------- Register Blueprints ----------------
     auth.init_auth_routes(app)
     app.register_blueprint(admin_routes.admin_bp, url_prefix="/api/admin")
@@ -42,3 +47,4 @@ def create_app():
         return {"status": "ok", "message": "Recruitment backend is running!"}, 200
 
     return app
+
