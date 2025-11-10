@@ -108,17 +108,17 @@ class EmailService:
         return html, fallback_text
 
     @staticmethod
-    def _send_async(subject, recipients, html_body, text_body=None):
-        """Send email asynchronously using SendGrid."""
-        def send_email():
-            try:
-                api_key = current_app.config.get("SENDGRID_API_KEY")
-                sender = current_app.config.get("MAIL_DEFAULT_SENDER")
+def _send_async(subject, recipients, html_body, text_body=None):
+    from flask import current_app
+    app = current_app._get_current_object()  # capture the real app
 
-                if not api_key:
-                    raise ValueError("SENDGRID_API_KEY is missing in config.")
-                if not sender:
-                    raise ValueError("MAIL_DEFAULT_SENDER is missing in config.")
+    def send_email():
+        with app.app_context():  # push app context for this thread
+            try:
+                api_key = app.config.get("SENDGRID_API_KEY")
+                sender = app.config.get("MAIL_DEFAULT_SENDER")
+                if not api_key or not sender:
+                    raise ValueError("Missing SendGrid API key or sender.")
 
                 sg = SendGridAPIClient(api_key)
                 for recipient in recipients:
@@ -127,19 +127,12 @@ class EmailService:
                         to_emails=recipient,
                         subject=subject,
                         html_content=html_body or text_body,
+                        plain_text_content=text_body
                     )
-
-                    logging.info(f"Sending email to {recipient} with subject '{subject}'")
-                    logging.debug(f"Email payload: {message.get()}")  # Full payload for debugging
-
                     response = sg.send(message)
-                    if response.status_code not in (200, 202):
-                        logging.error(f"Failed to send email to {recipient}, status={response.status_code}, body={response.body}")
-                    else:
-                        logging.info(f"✅ Email sent to {recipient} [{response.status_code}]")
+                    logging.info(f"Email sent to {recipient}: {response.status_code}")
 
             except Exception as e:
-                logging.error(f"❌ SendGrid error for {recipients}: {e}", exc_info=True)
+                logging.error(f"SendGrid error for {recipients}: {e}", exc_info=True)
 
-        Thread(target=send_email, daemon=True).start()
-
+    Thread(target=send_email, daemon=True).start()
