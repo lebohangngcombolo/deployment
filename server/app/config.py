@@ -61,13 +61,13 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
-    # Override email settings specifically for SendGrid
     MAIL_SERVER = 'smtp.sendgrid.net'
     MAIL_PORT = 587
     MAIL_USE_TLS = True
     MAIL_USERNAME = 'apikey'
-    MAIL_PASSWORD = os.getenv('SENDGRID_API_KEY')
-    MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', 'no-reply@yourdomain.com')
+    SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
+    MAIL_PASSWORD = SENDGRID_API_KEY
+    MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', 'lebohangngcombolo@gmail.com')
 
 
 # Config dictionary
