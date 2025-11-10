@@ -6,9 +6,9 @@ from sendgrid.helpers.mail import Mail
 
 
 class EmailService:
-    """Async SendGrid email service with proper HTML + fallback plain text."""
+    """Async SendGrid email service with HTML templates + fallback plain text."""
 
-    # ---------------- Public email methods ----------------
+    # ---------------- Public Email Methods ----------------
     @staticmethod
     def send_verification_email(email, verification_code):
         subject = "Verify Your Email Address"
@@ -96,7 +96,7 @@ class EmailService:
         )
         EmailService._send_async(subject, [email], html, text)
 
-    # ---------------- Internal helpers ----------------
+    # ---------------- Internal Helpers ----------------
     @staticmethod
     def _render_template(template_path, fallback_text, **context):
         """Render HTML template; return fallback text if rendering fails."""
@@ -108,31 +108,31 @@ class EmailService:
         return html, fallback_text
 
     @staticmethod
-def _send_async(subject, recipients, html_body, text_body=None):
-    from flask import current_app
-    app = current_app._get_current_object()  # capture the real app
+    def _send_async(subject, recipients, html_body, text_body=None):
+        """Send email asynchronously using SendGrid with Flask app context."""
+        app = current_app._get_current_object()  # capture actual app instance
 
-    def send_email():
-        with app.app_context():  # push app context for this thread
-            try:
-                api_key = app.config.get("SENDGRID_API_KEY")
-                sender = app.config.get("MAIL_DEFAULT_SENDER")
-                if not api_key or not sender:
-                    raise ValueError("Missing SendGrid API key or sender.")
+        def send_email():
+            with app.app_context():  # push app context for this thread
+                try:
+                    api_key = app.config.get("SENDGRID_API_KEY")
+                    sender = app.config.get("MAIL_DEFAULT_SENDER")
+                    if not api_key or not sender:
+                        raise ValueError("Missing SendGrid API key or sender.")
 
-                sg = SendGridAPIClient(api_key)
-                for recipient in recipients:
-                    message = Mail(
-                        from_email=sender,
-                        to_emails=recipient,
-                        subject=subject,
-                        html_content=html_body or text_body,
-                        plain_text_content=text_body
-                    )
-                    response = sg.send(message)
-                    logging.info(f"Email sent to {recipient}: {response.status_code}")
+                    sg = SendGridAPIClient(api_key)
+                    for recipient in recipients:
+                        message = Mail(
+                            from_email=sender,
+                            to_emails=recipient,
+                            subject=subject,
+                            html_content=html_body or text_body,
+                            plain_text_content=text_body
+                        )
+                        response = sg.send(message)
+                        logging.info(f"✅ Email sent to {recipient}: {response.status_code}")
 
-            except Exception as e:
-                logging.error(f"SendGrid error for {recipients}: {e}", exc_info=True)
+                except Exception as e:
+                    logging.error(f"❌ SendGrid error for {recipients}: {e}", exc_info=True)
 
-    Thread(target=send_email, daemon=True).start()
+        Thread(target=send_email, daemon=True).start()
