@@ -49,12 +49,18 @@ class Config:
 
     # CV Uploads
     CV_UPLOAD_FOLDER = os.getenv('CV_UPLOAD_FOLDER', 'uploads/cvs')
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+    
+    # Frontend URL
+    FRONTEND_URL = os.getenv('FRONTEND_URL')
+    
+    # SSO / Auth0
+    SSO_CLIENT_ID = os.getenv('SSO_CLIENT_ID')
+    SSO_CLIENT_SECRET = os.getenv('SSO_CLIENT_SECRET')
+    SSO_METADATA_URL = os.getenv('SSO_METADATA_URL')
+    SSO_USERINFO_URL = os.getenv('SSO_USERINFO_URL')
 
-    # Frontend
-    FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://localhost')
-
-
+    
 class DevelopmentConfig(Config):
     DEBUG = True
 
@@ -76,4 +82,3 @@ config = {
     'production': ProductionConfig,
     'default': DevelopmentConfig
 }
-
