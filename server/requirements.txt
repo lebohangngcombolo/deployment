@@ -23,4 +23,5 @@ openai
 Flask-SocketIO
 pyotp
 PyMuPDF
+qrcode
 sendgrid
