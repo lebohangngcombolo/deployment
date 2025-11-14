@@ -10,7 +10,7 @@ from app.models import (
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
-from app.utils.resume_analyzer import HybridResumeAnalyzer
+from app.services.cv_parser_service import HybridResumeAnalyzer
 from app.utils.decorators import role_required
 from app.utils.helper import get_current_candidate
 from app.services.audit2 import AuditService
