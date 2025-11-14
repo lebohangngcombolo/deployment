@@ -10,7 +10,7 @@ from app.models import (
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
-from app.services.cv_parser_service import HybridResumeAnalyzer, upload_cv_to_cloudinary
+from app.utils.resume_analyzer import HybridResumeAnalyzer
 from app.utils.decorators import role_required
 from app.utils.helper import get_current_candidate
 from app.services.audit2 import AuditService
@@ -136,8 +136,7 @@ def upload_resume(application_id):
                 resume_text += page.get_text()
 
         # --- Hybrid Resume Analysis ---
-        analyzer = HybridResumeAnalyzer()
-        parser_result = analyzer.analyse(resume_text, job.id)
+        parser_result = HybridResumeAnalyzer.analyse_resume(resume_text, job.id)
 
         # --- Save results ---
         application.resume_url = resume_url
