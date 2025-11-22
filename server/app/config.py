@@ -60,6 +60,15 @@ class Config:
     SSO_METADATA_URL = os.getenv('SSO_METADATA_URL')
     SSO_USERINFO_URL = os.getenv('SSO_USERINFO_URL')
 
+
+    
+    # SSO Configuration for Company Hub Integration
+    SSO_JWT_SECRET = os.getenv('SSO_JWT_SECRET', 'our-super-secret-code-123')  # Same as hub!
+    PORTAL_HUB_URL = os.getenv('PORTAL_HUB_URL', 'http://localhost:5001')  # Hub address
+    
+    
+
+
     
 class DevelopmentConfig(Config):
     DEBUG = True
