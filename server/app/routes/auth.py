@@ -15,6 +15,7 @@ from app.services.audit2 import AuditService
 from app.utils.decorators import role_required
 from datetime import datetime, timedelta
 import secrets
+import jwt  # ← ADD THIS IMPORT
 
 
 # ------------------- ROLE DASHBOARD MAP -------------------
@@ -72,6 +73,88 @@ def init_auth_routes(app):
         )
 
         app.oauth_initialized = True
+
+    # ------------------- SSO LOGIN (ADD THIS NEW ROUTE) -------------------
+    # In your auth_routes.py - Update the sso_login function:
+
+    @app.route("/api/auth/sso-login", methods=["GET"])
+    def sso_login():
+        """SSO login from company hub"""
+        try:
+            # Get token from hub
+            token = request.args.get('token')
+        
+            if not token:
+                return jsonify({"error": "No SSO token provided"}), 401
+        
+            # Verify the token using our secret
+            user_data = jwt.decode(
+                token, 
+                current_app.config['SSO_JWT_SECRET'],  # Make sure this is in your config
+                algorithms=['HS256']
+            )
+        
+            # Get user info from token - FIXED: Use first_name and last_name
+            email = user_data['email']
+            first_name = user_data.get('first_name', '')
+            last_name = user_data.get('last_name', '')
+            role = user_data['role']
+        
+            # Combine first and last name for display
+            full_name = f"{first_name} {last_name}".strip()
+            if not full_name:
+                full_name = email.split('@')[0]  # Use email username as fallback
+        
+            # Find user in our database
+            user = User.query.filter(db.func.lower(User.email) == email.lower()).first()
+        
+            # If user doesn't exist, create them automatically
+            if not user:
+                random_password = secrets.token_urlsafe(16)
+                user = AuthService.create_user(
+                    email=email,
+                    password=random_password,
+                    first_name=first_name,
+                    last_name=last_name,
+                    role=role
+                )
+                user.is_verified = True
+                db.session.commit()
+                current_app.logger.info(f"Auto-created user via SSO: {email}")
+        
+            # Create JWT tokens for our app
+            additional_claims = {"role": user.role}
+            access_token = create_access_token(identity=str(user.id), additional_claims=additional_claims)
+            refresh_token = create_refresh_token(identity=str(user.id), additional_claims=additional_claims)
+        
+            # Determine dashboard URL
+            dashboard_path = (
+                "/enrollment"
+                if user.role == "candidate" and not getattr(user, "enrollment_completed", False)
+                else ROLE_DASHBOARD_MAP.get(user.role, "/dashboard")
+            )
+        
+            # Remove accidental /api/ prefix
+            if dashboard_path.startswith("/api/"):
+                dashboard_path = dashboard_path.replace("/api", "", 1)
+        
+            # Redirect to frontend with tokens
+            frontend_redirect = (
+                f"{current_app.config['FRONTEND_URL']}/oauth-callback"  # ← CHANGED THIS LINE
+                f"?access_token={access_token}&refresh_token={refresh_token}&role={user.role}"
+            )
+        
+            current_app.logger.info(f"SSO Login: {user.email} ({user.role}) → {frontend_redirect}")
+            return redirect(frontend_redirect)
+        
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "SSO token has expired"}), 401
+        except jwt.InvalidTokenError as e:
+            current_app.logger.error(f"Invalid SSO token: {str(e)}")
+            return jsonify({"error": "Invalid SSO token"}), 401
+        except Exception as e:
+            current_app.logger.error(f"SSO login error: {str(e)}", exc_info=True)
+            return jsonify({"error": "SSO authentication failed"}), 500
 
     # ------------------- LOGOUT -------------------
     @app.route("/api/auth/logout", methods=["POST"])
