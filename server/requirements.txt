@@ -26,3 +26,4 @@ pyotp
 PyMuPDF
 qrcode
 sendgrid
+bleach
