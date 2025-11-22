@@ -1,6 +1,7 @@
 from app.extensions import db
 from datetime import datetime
 from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.dialects.postgresql import JSONB
 
 # ------------------- USER -------------------
 class User(db.Model):
@@ -462,9 +463,11 @@ class Meeting(db.Model):
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
     organizer_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    participants = db.Column(JSON, default=[])  # list of user emails or IDs
+    participants = db.Column(JSONB, nullable=False, default=[])  # list of user emails or IDs
     meeting_link = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    cancelled = db.Column(db.Boolean, default=False)
+
 
     organizer = db.relationship("User", backref=db.backref("organized_meetings", lazy=True))
 
@@ -481,7 +484,7 @@ class Meeting(db.Model):
                 "email": self.organizer.email,
                 "profile": self.organizer.profile
             } if self.organizer else None,
-            "participants": self.participants,
+            "participants": self.participants if isinstance(self.participants, list) else [],
             "meeting_link": self.meeting_link,
             "created_at": self.created_at.isoformat()
         }
