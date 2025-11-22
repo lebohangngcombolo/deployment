@@ -5,7 +5,7 @@ from .extensions import (
     migrate, cors, bcrypt, oauth
 )
 from .models import *
-from .routes import auth, admin_routes, candidate_routes, ai_routes, mfa_routes, sso_routes  # import sso_routes
+from .routes import auth, admin_routes, candidate_routes, ai_routes, mfa_routes, sso_routes, analytics_routes  # import sso_routes
 
 def create_app():
     app = Flask(__name__)
@@ -36,6 +36,7 @@ def create_app():
     app.register_blueprint(candidate_routes.candidate_bp, url_prefix="/api/candidate")
     app.register_blueprint(ai_routes.ai_bp)
     app.register_blueprint(mfa_routes.mfa_bp, url_prefix="/api/auth")  # MFA routes
+    app.register_blueprint(analytics_routes.analytics_bp, url_prefix="/api")
 
     # ---------------- Register SSO Blueprint ----------------
     sso_routes.register_sso_provider(app)      # initialize Auth0 / SSO provider
