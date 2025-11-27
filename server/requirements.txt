@@ -27,3 +27,5 @@ PyMuPDF
 qrcode
 sendgrid
 bleach
+flask-limiter
+

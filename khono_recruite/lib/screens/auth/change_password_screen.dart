@@ -35,8 +35,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       if (token == null) throw Exception("Token not found");
 
       // Use 10.0.2.2 for Android emulator, replace with your PC IP on device
-      const String apiUrl =
-          "https://d694eb53771c.ngrok-free.app/api/auth/change-password";
+      const String apiUrl = "http://127.0.0.1:5000/api/auth/change-password";
 
       final body = {
         "temporary_password": _oldPasswordController.text.trim(),

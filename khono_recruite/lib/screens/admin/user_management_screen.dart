@@ -37,7 +37,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (token == null) return;
 
       final response = await http.get(
-        Uri.parse("https://d694eb53771c.ngrok-free.app/api/admin/users"),
+        Uri.parse("http://127.0.0.1:5000/api/admin/users"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token",
@@ -378,7 +378,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
                               final response = await http.post(
                                 Uri.parse(
-                                    "https://d694eb53771c.ngrok-free.app/api/auth/admin-enroll"),
+                                    "http://127.0.0.1:5000/api/auth/admin-enroll"),
                                 headers: {
                                   "Content-Type": "application/json",
                                   "Authorization": "Bearer $token",
@@ -620,7 +620,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
                               final response = await http.put(
                                 Uri.parse(
-                                    "https://d694eb53771c.ngrok-free.app/api/admin/users/$userId"),
+                                    "http://127.0.0.1:5000/api/admin/users/$userId"),
                                 headers: {
                                   "Content-Type": "application/json",
                                   "Authorization": "Bearer $token",

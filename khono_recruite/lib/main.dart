@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_web_plugins/flutter_web_plugins.dart'; // ⚡ Web URL strategy
 
 import 'screens/auth/login_screen.dart';
 import 'screens/candidate/candidate_dashboard.dart';
@@ -11,11 +12,16 @@ import 'screens/landing_page/landing_page.dart';
 import 'screens/auth/reset_password.dart';
 import 'screens/admin/profile_page.dart';
 import 'screens/auth/oath_callback_screen.dart';
+import 'screens/auth/mfa_verification_screen.dart';
+import 'screens/auth/sso_handler_screen.dart';
 
 import 'providers/theme_provider.dart';
 import 'utils/theme_utils.dart';
 
 void main() {
+  // ⚡ Fix Flutter Web initial route handling
+  setUrlStrategy(PathUrlStrategy());
+
   runApp(
     MultiProvider(
       providers: [
@@ -26,7 +32,7 @@ void main() {
   );
 }
 
-// ✅ Move router outside build so it doesn’t rebuild every theme toggle
+// ✅ Persistent router
 final GoRouter _router = GoRouter(
   initialLocation: '/',
   routes: [
@@ -37,6 +43,23 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/login',
       builder: (context, state) => const LoginScreen(),
+    ),
+    GoRoute(
+      path: '/mfa-verification',
+      builder: (context, state) {
+        final mfaSessionToken =
+            state.uri.queryParameters['mfa_session_token'] ?? '';
+        final userId = state.uri.queryParameters['user_id'] ?? '';
+        return MfaVerificationScreen(
+          mfaSessionToken: mfaSessionToken,
+          userId: userId,
+          onVerify: (String token) {},
+          onBack: () {
+            context.go('/login');
+          },
+          isLoading: false,
+        );
+      },
     ),
     GoRoute(
       path: '/reset-password',
@@ -67,9 +90,11 @@ final GoRouter _router = GoRouter(
       },
     ),
     GoRoute(
-      path: '/hiring-manager-dashboard',
-      builder: (context, state) => HMMainDashboard(),
-    ),
+        path: '/hiring-manager-dashboard',
+        builder: (context, state) {
+          final token = state.uri.queryParameters['token'] ?? '';
+          return HMMainDashboard(token: token);
+        }),
     GoRoute(
       path: '/profile',
       builder: (context, state) {
@@ -77,9 +102,14 @@ final GoRouter _router = GoRouter(
         return ProfilePage(token: token);
       },
     ),
+    // ⚡ OAuth callback screen reads tokens directly from URL
     GoRoute(
       path: '/oauth-callback',
       builder: (context, state) => const OAuthCallbackScreen(),
+    ),
+    GoRoute(
+      path: '/sso-redirect',
+      builder: (context, state) => const SsoRedirectHandler(),
     ),
   ],
 );
@@ -97,7 +127,7 @@ class KhonoRecruiteApp extends StatelessWidget {
       themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeUtils.lightTheme,
       darkTheme: ThemeUtils.darkTheme,
-      routerConfig: _router, // ✅ Uses the persistent router
+      routerConfig: _router,
     );
   }
 }

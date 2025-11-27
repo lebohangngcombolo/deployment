@@ -53,6 +53,7 @@ class Config:
     
     # Frontend URL
     FRONTEND_URL = os.getenv('FRONTEND_URL')
+    RATELIMIT_STORAGE_URI = "memory://"
     
     # SSO / Auth0
     SSO_CLIENT_ID = os.getenv('SSO_CLIENT_ID')

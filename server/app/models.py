@@ -434,8 +434,9 @@ class SharedNote(db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
+    tags = db.Column(db.String(255))
     author = db.relationship("User", backref=db.backref("shared_notes", lazy=True))
+    is_pinned = db.Column(db.Boolean, default=False)  # <-- add this
 
     def to_dict(self):
         return {
@@ -465,11 +466,15 @@ class Meeting(db.Model):
     organizer_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     participants = db.Column(JSONB, nullable=False, default=[])  # list of user emails or IDs
     meeting_link = db.Column(db.String(500))
+    location = db.Column(db.String(500))
+    meeting_type = db.Column(db.String(50), default="general")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     cancelled = db.Column(db.Boolean, default=False)
+    cancelled_at = db.Column(db.DateTime, nullable=True)
+    cancelled_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
-
-    organizer = db.relationship("User", backref=db.backref("organized_meetings", lazy=True))
+    organizer = db.relationship("User", backref=db.backref("organized_meetings", lazy=True), foreign_keys=[organizer_id])
 
     def to_dict(self):
         return {
@@ -486,5 +491,11 @@ class Meeting(db.Model):
             } if self.organizer else None,
             "participants": self.participants if isinstance(self.participants, list) else [],
             "meeting_link": self.meeting_link,
-            "created_at": self.created_at.isoformat()
+            "location": self.location,
+            "meeting_type": self.meeting_type,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "cancelled": self.cancelled,
+            "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
+            "cancelled_by": self.cancelled_by
         }

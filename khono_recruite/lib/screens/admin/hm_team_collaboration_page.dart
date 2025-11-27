@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../constants/app_colors.dart';
-import '../../../providers/theme_provider.dart'; // ADD THIS IMPORT
+import '../../../providers/theme_provider.dart';
+import '../../services/admin_service.dart';
+import 'meeting_screen.dart'; // ADD THIS IMPORT
 
 class HMTeamCollaborationPage extends StatefulWidget {
   const HMTeamCollaborationPage({super.key});
@@ -24,6 +26,9 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
   String _selectedEntity = 'general';
   String _currentUser = 'Hiring Manager';
 
+  final AdminService _apiService = AdminService(); // ADD API SERVICE
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -37,6 +42,30 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
 
   Future<void> _loadTeamData() async {
     setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Load shared notes from API
+      final notesResponse = await _apiService.getNotes(page: 1, perPage: 10);
+      final notesData = notesResponse['notes'] as List<dynamic>;
+
+      setState(() {
+        _sharedNotes.clear();
+        _sharedNotes.addAll(notesData
+            .map((note) => SharedNote(
+                  id: note['id'] ?? 0,
+                  title: note['title'] ?? 'Untitled',
+                  content: note['content'] ?? '',
+                  author: note['author_name'] ?? 'Unknown',
+                  lastModified:
+                      DateTime.parse(note['updated_at'] ?? note['created_at']),
+                ))
+            .toList());
+      });
+
+      // Load team members (you might need to create a separate API for this)
+      // For now, keeping the mock data but you can replace with API call
       _teamMembers.addAll([
         TeamMember(
             name: 'John Smith', role: 'Senior Recruiter', isOnline: true),
@@ -44,24 +73,20 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
         TeamMember(name: 'Mike Davis', role: 'Technical Lead', isOnline: false),
         TeamMember(name: 'Lisa Chen', role: 'Recruiter', isOnline: true),
       ]);
-
-      _sharedNotes.addAll([
-        SharedNote(
-          title: 'Frontend Developer Requirements',
-          content:
-              'Looking for React/TypeScript experience with 3+ years in modern frontend development...',
-          author: 'John Smith',
-          lastModified: DateTime.now().subtract(const Duration(hours: 2)),
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load data: $e', style: GoogleFonts.inter()),
+          backgroundColor: AppColors.primaryRed,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        SharedNote(
-          title: 'Interview Process Updates',
-          content:
-              'Updated interview questions for technical roles including system design and behavioral questions...',
-          author: 'Sarah Johnson',
-          lastModified: DateTime.now().subtract(const Duration(days: 1)),
-        ),
-      ]);
-    });
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -76,27 +101,49 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
           _buildHeader(themeProvider),
           const SizedBox(height: 20),
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left Panel
-                Expanded(
-                  flex: 1,
-                  child: Column(
+            child: _isLoading
+                ? _buildLoadingState(themeProvider)
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildTeamMembersPanel(themeProvider),
-                      const SizedBox(height: 20),
-                      _buildSharedNotesPanel(themeProvider),
+                      // Left Panel
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _buildTeamMembersPanel(themeProvider),
+                            const SizedBox(height: 20),
+                            _buildSharedNotesPanel(themeProvider),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      // Right Panel
+                      Expanded(
+                        flex: 2,
+                        child: _buildChatPanel(themeProvider),
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 20),
-                // Right Panel
-                Expanded(
-                  flex: 2,
-                  child: _buildChatPanel(themeProvider),
-                ),
-              ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState(ThemeProvider themeProvider) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: AppColors.primaryRed),
+          const SizedBox(height: 16),
+          Text(
+            'Loading team collaboration data...',
+            style: GoogleFonts.inter(
+              color:
+                  themeProvider.isDarkMode ? Colors.white : AppColors.textDark,
+              fontSize: 16,
             ),
           ),
         ],
@@ -131,10 +178,10 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Image.asset(
-                  'assets/icons/teamC.png', // Your custom icon path
+                  'assets/icons/teamC.png',
                   width: 30,
                   height: 30,
-                  color: AppColors.primaryRed, // Same color as before
+                  color: AppColors.primaryRed,
                 ),
               ),
               const SizedBox(width: 16),
@@ -224,11 +271,12 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
     );
   }
 
-  Widget _buildActionButton(
-      {required IconData icon,
-      required String label,
-      required Color color,
-      required VoidCallback onPressed}) {
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
@@ -479,16 +527,56 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: ListView.builder(
-                itemCount: _sharedNotes.length,
-                itemBuilder: (context, index) {
-                  final note = _sharedNotes[index];
-                  return _buildSharedNoteCard(note, themeProvider);
-                },
-              ),
+              child: _sharedNotes.isEmpty
+                  ? _buildEmptyNotesState(themeProvider)
+                  : ListView.builder(
+                      itemCount: _sharedNotes.length,
+                      itemBuilder: (context, index) {
+                        final note = _sharedNotes[index];
+                        return _buildSharedNoteCard(note, themeProvider);
+                      },
+                    ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyNotesState(ThemeProvider themeProvider) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.note_add_outlined,
+            size: 64,
+            color: themeProvider.isDarkMode
+                ? Colors.grey.shade600
+                : Colors.grey.shade300,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No shared notes yet',
+            style: GoogleFonts.inter(
+              color: themeProvider.isDarkMode
+                  ? Colors.grey.shade400
+                  : Colors.grey.shade500,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Create your first shared note to collaborate',
+            style: GoogleFonts.inter(
+              color: themeProvider.isDarkMode
+                  ? Colors.grey.shade500
+                  : Colors.grey.shade400,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -516,6 +604,7 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () => _viewSharedNote(note),
+          onLongPress: () => _showNoteOptions(note),
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -932,6 +1021,8 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
 
   void _createSharedNote() {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final titleController = TextEditingController();
+    final contentController = TextEditingController();
 
     showDialog(
       context: context,
@@ -947,6 +1038,7 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
+              controller: titleController,
               decoration: InputDecoration(
                 labelText: 'Title',
                 border:
@@ -963,6 +1055,7 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
             ),
             const SizedBox(height: 16),
             TextField(
+              controller: contentController,
               decoration: InputDecoration(
                 labelText: 'Content',
                 border:
@@ -1001,18 +1094,53 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
               ],
             ),
             child: ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Shared note created successfully',
-                        style: GoogleFonts.inter()),
-                    backgroundColor: Colors.green,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                  ),
-                );
+              onPressed: () async {
+                if (titleController.text.trim().isEmpty ||
+                    contentController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Please fill in both title and content',
+                          style: GoogleFonts.inter()),
+                      backgroundColor: AppColors.primaryRed,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                  return;
+                }
+
+                try {
+                  await _apiService.createNote({
+                    'title': titleController.text.trim(),
+                    'content': contentController.text.trim(),
+                  });
+
+                  Navigator.pop(context);
+                  await _loadTeamData(); // Refresh the notes list
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Shared note created successfully',
+                          style: GoogleFonts.inter()),
+                      backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to create note: $e',
+                          style: GoogleFonts.inter()),
+                      backgroundColor: AppColors.primaryRed,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryRed,
@@ -1060,14 +1188,277 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
     );
   }
 
+  void _showNoteOptions(SharedNote note) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor:
+          themeProvider.isDarkMode ? const Color(0xFF14131E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.edit, color: AppColors.primaryRed),
+              title: Text('Edit Note',
+                  style: GoogleFonts.inter(
+                    color:
+                        themeProvider.isDarkMode ? Colors.white : Colors.black,
+                  )),
+              onTap: () {
+                Navigator.pop(context);
+                _editSharedNote(note);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete, color: AppColors.primaryRed),
+              title: Text('Delete Note',
+                  style: GoogleFonts.inter(
+                    color:
+                        themeProvider.isDarkMode ? Colors.white : Colors.black,
+                  )),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteSharedNote(note);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editSharedNote(SharedNote note) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final titleController = TextEditingController(text: note.title);
+    final contentController = TextEditingController(text: note.content);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor:
+            themeProvider.isDarkMode ? const Color(0xFF14131E) : Colors.white,
+        title: Text('Edit Shared Note',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+            )),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: InputDecoration(
+                labelText: 'Title',
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                labelStyle: GoogleFonts.inter(
+                  color: themeProvider.isDarkMode
+                      ? Colors.grey.shade400
+                      : Colors.black,
+                ),
+              ),
+              style: GoogleFonts.inter(
+                color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: contentController,
+              decoration: InputDecoration(
+                labelText: 'Content',
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                labelStyle: GoogleFonts.inter(
+                  color: themeProvider.isDarkMode
+                      ? Colors.grey.shade400
+                      : Colors.black,
+                ),
+              ),
+              maxLines: 4,
+              style: GoogleFonts.inter(
+                color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel',
+                style: GoogleFonts.inter(
+                    color: themeProvider.isDarkMode
+                        ? Colors.grey.shade400
+                        : AppColors.textGrey)),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryRed.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: () async {
+                if (titleController.text.trim().isEmpty ||
+                    contentController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Please fill in both title and content',
+                          style: GoogleFonts.inter()),
+                      backgroundColor: AppColors.primaryRed,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                  return;
+                }
+
+                try {
+                  await _apiService.updateNote(note.id, {
+                    'title': titleController.text.trim(),
+                    'content': contentController.text.trim(),
+                  });
+
+                  Navigator.pop(context);
+                  await _loadTeamData(); // Refresh the notes list
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Shared note updated successfully',
+                          style: GoogleFonts.inter()),
+                      backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to update note: $e',
+                          style: GoogleFonts.inter()),
+                      backgroundColor: AppColors.primaryRed,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryRed,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: Text('Update',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteSharedNote(SharedNote note) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor:
+            themeProvider.isDarkMode ? const Color(0xFF14131E) : Colors.white,
+        title: Text('Delete Note',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+            )),
+        content: Text('Are you sure you want to delete "${note.title}"?',
+            style: GoogleFonts.inter(
+              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+            )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel',
+                style: GoogleFonts.inter(
+                    color: themeProvider.isDarkMode
+                        ? Colors.grey.shade400
+                        : AppColors.textGrey)),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryRed.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _apiService.deleteNote(note.id);
+                  Navigator.pop(context);
+                  await _loadTeamData(); // Refresh the notes list
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Note deleted successfully',
+                          style: GoogleFonts.inter()),
+                      backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                } catch (e) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to delete note: $e',
+                          style: GoogleFonts.inter()),
+                      backgroundColor: AppColors.primaryRed,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryRed,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: Text('Delete',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _scheduleMeeting() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Meeting scheduling feature coming soon',
-            style: GoogleFonts.inter()),
-        backgroundColor: AppColors.primaryRed,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    // Navigate to the meetings page instead of showing a snackbar
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const HMMeetingsPage(),
       ),
     );
   }
@@ -1089,24 +1480,26 @@ class _HMTeamCollaborationPageState extends State<HMTeamCollaborationPage> {
   }
 }
 
-// Models remain unchanged
+// Updated Models
 class CollaborationMessage {
   final String author;
   final String content;
   final DateTime timestamp;
   final String entity;
 
-  CollaborationMessage(
-      {required this.author,
-      required this.content,
-      required this.timestamp,
-      required this.entity});
+  CollaborationMessage({
+    required this.author,
+    required this.content,
+    required this.timestamp,
+    required this.entity,
+  });
 
   factory CollaborationMessage.fromJson(String json) => CollaborationMessage(
-      author: 'User',
-      content: json,
-      timestamp: DateTime.now(),
-      entity: 'general');
+        author: 'User',
+        content: json,
+        timestamp: DateTime.now(),
+        entity: 'general',
+      );
 
   String toJson() => content;
 }
@@ -1116,18 +1509,25 @@ class TeamMember {
   final String role;
   final bool isOnline;
 
-  TeamMember({required this.name, required this.role, required this.isOnline});
+  TeamMember({
+    required this.name,
+    required this.role,
+    required this.isOnline,
+  });
 }
 
 class SharedNote {
+  final int id;
   final String title;
   final String content;
   final String author;
   final DateTime lastModified;
 
-  SharedNote(
-      {required this.title,
-      required this.content,
-      required this.author,
-      required this.lastModified});
+  SharedNote({
+    required this.id,
+    required this.title,
+    required this.content,
+    required this.author,
+    required this.lastModified,
+  });
 }

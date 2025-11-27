@@ -4,7 +4,7 @@ import '../models/hm_models.dart';
 import '../services/auth_service.dart';
 
 class HMService {
-  static const String baseUrl = 'https://d694eb53771c.ngrok-free.app/api/admin';
+  static const String baseUrl = 'http://127.0.0.1:5000/api/admin';
 
   Future<HMDashboardData> getDashboardData(String token) async {
     final response = await http.get(

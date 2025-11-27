@@ -2,7 +2,7 @@ from flask import Flask
 import os
 from .extensions import (
     db, jwt, mail, cloudinary_client, mongo_client,
-    migrate, cors, bcrypt, oauth
+    migrate, cors, bcrypt, oauth, limiter
 )
 from .models import *
 from .routes import auth, admin_routes, candidate_routes, ai_routes, mfa_routes, sso_routes, analytics_routes  # import sso_routes
@@ -22,6 +22,7 @@ def create_app():
     oauth.init_app(app)
     bcrypt.init_app(app)
     cloudinary_client.init_app(app)
+    limiter.init_app(app)
     cors.init_app(
         app,
         origins=["*"],  # adjust for production

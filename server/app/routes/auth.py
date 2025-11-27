@@ -1,3 +1,4 @@
+
 from flask import request, jsonify, current_app, redirect, url_for, make_response
 from flask_jwt_extended import (
     create_access_token,
@@ -7,7 +8,7 @@ from flask_jwt_extended import (
     verify_jwt_in_request, 
     get_jwt_identity
 )
-from app.extensions import db, oauth  
+from app.extensions import db, oauth, limiter, validator
 from app.models import User, VerificationCode, OAuthConnection, Candidate
 from app.services.auth_service import AuthService
 from app.services.email_service import EmailService
@@ -16,6 +17,9 @@ from app.utils.decorators import role_required
 from datetime import datetime, timedelta
 import secrets
 import jwt  # ← ADD THIS IMPORT
+
+
+
 
 
 # ------------------- ROLE DASHBOARD MAP -------------------
@@ -78,6 +82,7 @@ def init_auth_routes(app):
     # In your auth_routes.py - Update the sso_login function:
 
     @app.route("/api/auth/sso-login", methods=["GET"])
+    @limiter.limit("10 per minute")
     def sso_login():
         """SSO login from company hub"""
         try:
@@ -159,6 +164,7 @@ def init_auth_routes(app):
     # ------------------- LOGOUT -------------------
     @app.route("/api/auth/logout", methods=["POST"])
     @jwt_required()
+    @limiter.limit("20 per minute")  # Add this line
     def logout():
         try:
             response = jsonify({"message": "Successfully logged out"})
@@ -170,6 +176,7 @@ def init_auth_routes(app):
 
     # ------------------- GOOGLE LOGIN -------------------
     @app.route("/api/auth/google")
+    @limiter.limit("10 per minute")
     def google_login():
         try:
             redirect_uri = url_for("google_callback", _external=True)
@@ -180,6 +187,7 @@ def init_auth_routes(app):
             return jsonify({"error": "OAuth configuration error"}), 500
 
     @app.route("/api/auth/google/callback")
+    @limiter.limit("10 per minute")
     def google_callback():
         try:
             oauth.google.authorize_access_token()
@@ -195,6 +203,7 @@ def init_auth_routes(app):
 
     # ------------------- GITHUB LOGIN -------------------
     @app.route("/api/auth/github")
+    @limiter.limit("10 per minute")
     def github_login():
         try:
             redirect_uri = url_for("github_callback", _external=True)
@@ -204,6 +213,7 @@ def init_auth_routes(app):
             return jsonify({"error": "OAuth configuration error"}), 500
 
     @app.route("/api/auth/github/callback")
+    @limiter.limit("10 per minute")
     def github_callback():
         try:
             oauth.github.authorize_access_token()
@@ -289,6 +299,7 @@ def init_auth_routes(app):
 
     # ------------------- REGISTER -------------------
     @app.route('/api/auth/register', methods=['POST'])
+    @limiter.limit("5 per minute")  # Add this line - stricter for registration
     def register():
         try:
             data = request.get_json()
@@ -297,6 +308,13 @@ def init_auth_routes(app):
             first_name = data.get('first_name')
             last_name = data.get('last_name')
             role = data.get('role', 'candidate')
+            
+            # ---------------- Password Validation ----------------
+            valid_password, errors = validator.validate(password)
+
+            if not valid_password:
+                return jsonify({"errors": errors}), 400
+            # -----------------------------------------------------
 
             if role not in ROLE_DASHBOARD_MAP:
                 return jsonify({"error": "Invalid role"}), 400
@@ -331,6 +349,7 @@ def init_auth_routes(app):
 
     # ------------------- VERIFY EMAIL -------------------
     @app.route('/api/auth/verify', methods=['POST'])
+    @limiter.limit("10 per minute")  # Add this line
     def verify_email():
         try:
             data = request.get_json()
@@ -376,6 +395,7 @@ def init_auth_routes(app):
 
     # ------------------- LOGIN -------------------
     @app.route('/api/auth/login', methods=['POST'])
+    @limiter.limit("10 per minute")  # Add this line
     def login():
         try:
             data = request.get_json()
@@ -448,6 +468,7 @@ def init_auth_routes(app):
     # ------------------- REFRESH TOKEN -------------------
     @app.route('/api/auth/refresh', methods=['POST'])
     @jwt_required(refresh=True)
+    @limiter.limit("30 per minute")  # Add this line - more lenient for refresh
     def refresh_token():
         try:
             current_user_id = int(get_jwt_identity())
@@ -474,6 +495,7 @@ def init_auth_routes(app):
 
     # ------------------- FORGOT & RESET PASSWORD -------------------
     @app.route('/api/auth/forgot-password', methods=['POST'])
+    @limiter.limit("5 per minute")  # Add this line - stricter to prevent abuse
     def forgot_password():
         try:
             data = request.get_json()
@@ -495,6 +517,7 @@ def init_auth_routes(app):
             return jsonify({'error': 'Internal server error'}), 500
 
     @app.route('/api/auth/reset-password', methods=['POST'])
+    @limiter.limit("5 per minute")  # Add this line
     def reset_password():
         try:
             data = request.get_json()
@@ -526,6 +549,7 @@ def init_auth_routes(app):
     # ------------------- GET CURRENT USER -------------------
     @app.route("/api/auth/me", methods=["GET"])
     @jwt_required()
+    @limiter.limit("60 per minute")  # Add this line - more lenient for frequent use
     def get_current_user():
         try:
             current_user_id = int(get_jwt_identity())
@@ -543,7 +567,6 @@ def init_auth_routes(app):
 
             AuditService.log(user_id=user.id, action="get_current_user")
 
-
             response_data = {
                 "user": {
                     # User table fields only
@@ -552,11 +575,13 @@ def init_auth_routes(app):
                     "role": user.role,
                     "enrollment_completed": user.enrollment_completed,
                     "created_at": user.created_at.isoformat() if user.created_at else None,
+                    # 🆕 ADD THIS - Include the JSON profile column
+                    "profile": user.profile or {}
                 },
                 "role": user.role,
                 "dashboard": dashboard_url
             }
-        
+    
             # Add full candidate profile data if available
             if candidate_profile:
                 response_data["candidate_profile"] = candidate_profile
@@ -569,6 +594,7 @@ def init_auth_routes(app):
     # ------------------- DASHBOARDS -------------------
     @app.route("/api/dashboard/admin", methods=["GET"])
     @role_required("admin")
+    @limiter.limit("60 per minute")  # Add this line
     def admin_dashboard():
         verify_jwt_in_request()
         current_user_id = int(get_jwt_identity())
@@ -577,6 +603,7 @@ def init_auth_routes(app):
 
     @app.route("/api/dashboard/hiring-manager", methods=["GET"])
     @role_required("hiring_manager")
+    @limiter.limit("60 per minute")  # Add this line
     def hiring_manager_dashboard():
         current_user_id = int(get_jwt_identity())
         AuditService.log(user_id=current_user_id, action="view_hiring_manager_dashboard")
@@ -584,6 +611,7 @@ def init_auth_routes(app):
 
     @app.route("/api/dashboard/candidate", methods=["GET"])
     @role_required("candidate")
+    @limiter.limit("60 per minute")  # Add this line
     def candidate_dashboard():
         current_user_id = int(get_jwt_identity())
         AuditService.log(user_id=current_user_id, action="view_candidate_dashboard")
@@ -592,6 +620,7 @@ def init_auth_routes(app):
     # ------------------- CANDIDATE ENROLLMENT -------------------
     @app.route("/api/candidate/enrollment", methods=["POST"])
     @role_required("candidate")
+    @limiter.limit("10 per minute")  # Add this line
     def candidate_enrollment():
         try:
             current_user_id = int(get_jwt_identity())
@@ -616,6 +645,7 @@ def init_auth_routes(app):
 
     @app.route("/api/auth/admin-enroll", methods=["POST"])
     @role_required("admin")
+    @limiter.limit("10 per minute")  # Add this line
     def admin_enroll_user():
         try:
             data = request.get_json() or {}
@@ -680,6 +710,7 @@ def init_auth_routes(app):
     # ------------------- CHANGE PASSWORD (FIRST LOGIN) -------------------
     @app.route("/api/auth/change-password", methods=["POST"])
     @jwt_required()
+    @limiter.limit("10 per minute")  # Add this line
     def change_password():
         try:
             data = request.get_json(force=True, silent=True)  # <-- force JSON parsing

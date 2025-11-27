@@ -3,10 +3,13 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../services/auth_service.dart';
 import 'cv_upload_page.dart';
+import 'package:go_router/go_router.dart';
 
 class AssessmentPage extends StatefulWidget {
   final int applicationId;
-  const AssessmentPage({super.key, required this.applicationId});
+  final Map<String, dynamic>? draftData; // <-- add this line
+  const AssessmentPage(
+      {super.key, required this.applicationId, this.draftData});
 
   @override
   State<AssessmentPage> createState() => _AssessmentPageState();
@@ -20,10 +23,29 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   String? token;
 
+  // Theme Colors
+  final Color _primaryDark = Colors.white; // Background
+  final Color _cardDark = Colors.white; // Card background
+  final Color _accentRed = Color(0xFFE53935); // Main red
+  final Color _accentPurple = Color(0xFFD32F2F); // Dark red
+  final Color _accentBlue = Color(0xFFEF5350); // Light red
+  final Color _accentGreen = Color(0xFF43A047); // Success
+  final Color _textPrimary = Colors.black; // Main text
+  final Color _textSecondary = Colors.redAccent; // Secondary text
+  final Color _surfaceOverlay = Colors.red.withOpacity(0.1); // subtle overlay
+
   @override
   void initState() {
     super.initState();
     loadTokenAndFetch();
+
+    // ✅ Autofill from draft if available
+    if (widget.draftData != null && widget.draftData!['assessment'] != null) {
+      final savedAnswers =
+          Map<String, dynamic>.from(widget.draftData!['assessment']);
+      answers = savedAnswers
+          .map((key, value) => MapEntry(int.parse(key), value.toString()));
+    }
   }
 
   Future<void> loadTokenAndFetch() async {
@@ -39,7 +61,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
     try {
       final res = await http.get(
         Uri.parse(
-            "https://d694eb53771c.ngrok-free.app/api/candidate/applications/${widget.applicationId}/assessment"),
+            "http://127.0.0.1:5000/api/candidate/applications/${widget.applicationId}/assessment"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token"
@@ -75,7 +97,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
       final res = await http.post(
         Uri.parse(
-            "https://d694eb53771c.ngrok-free.app/api/candidate/applications/${widget.applicationId}/assessment"),
+            "http://127.0.0.1:5000/api/candidate/applications/${widget.applicationId}/assessment"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token"
@@ -111,15 +133,18 @@ class _AssessmentPageState extends State<AssessmentPage> {
     if (token == null) return;
 
     try {
+      // Wrap assessment answers under 'assessment' key
       final payload = {
-        "draft_data":
-            answers.map((key, value) => MapEntry(key.toString(), value)),
-        "last_step": "assessment"
+        "draft_data": {
+          "assessment":
+              answers.map((key, value) => MapEntry(key.toString(), value))
+        },
+        "last_saved_screen": "assessment"
       };
 
       final res = await http.post(
         Uri.parse(
-            "https://d694eb53771c.ngrok-free.app/api/candidate/apply/save_draft/${widget.applicationId}"),
+            "http://127.0.0.1:5000/api/candidate/apply/save_draft/${widget.applicationId}"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token"
@@ -132,14 +157,10 @@ class _AssessmentPageState extends State<AssessmentPage> {
           const SnackBar(content: Text("Progress saved successfully.")),
         );
 
-        // Redirect to dashboard after a short delay
+        // ✅ Use GoRouter to navigate
         await Future.delayed(const Duration(milliseconds: 700));
         if (context.mounted) {
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            '/dashboard',
-            (route) => false,
-          );
+          GoRouter.of(context).go('/candidate-dashboard');
         }
       } else {
         throw Exception("Failed to save draft: ${res.body}");
@@ -154,117 +175,210 @@ class _AssessmentPageState extends State<AssessmentPage> {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: Colors.red)),
+      return Scaffold(
+        backgroundColor: _primaryDark,
+        body: Container(
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage("assets/images/dark.png"),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: Center(
+            child: CircularProgressIndicator(color: _accentRed),
+          ),
+        ),
       );
     }
 
     if (questions.isEmpty) {
       return Scaffold(
+        backgroundColor: _primaryDark,
         appBar: AppBar(
-            title: const Text("Assessment"), backgroundColor: Colors.red),
-        body: const Center(child: Text("No assessment available")),
+          title: Text(
+            "Assessment",
+            style: TextStyle(color: _textPrimary),
+          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: IconThemeData(color: _textPrimary),
+        ),
+        body: Container(
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage("assets/images/dark.png"),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              "No assessment available",
+              style: TextStyle(color: _textPrimary, fontSize: 16),
+            ),
+          ),
+        ),
       );
     }
 
     return Scaffold(
-      appBar:
-          AppBar(title: const Text("Assessment"), backgroundColor: Colors.red),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: ListView.builder(
-          itemCount: questions.length + 2, // ✅ Added 1 more for Save & Exit
-          itemBuilder: (context, index) {
-            if (index == questions.length) {
-              // Submit button
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: submitting ? null : submitAssessment,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+      backgroundColor: _primaryDark,
+      appBar: AppBar(
+        title: Text(
+          "Assessment",
+          style: TextStyle(
+            color: _textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: IconThemeData(color: _textPrimary),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage("assets/images/dark.png"),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: ListView.builder(
+            itemCount: questions.length + 2, // ✅ Added 1 more for Save & Exit
+            itemBuilder: (context, index) {
+              if (index == questions.length) {
+                // Submit button
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: submitting ? null : submitAssessment,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _accentRed,
+                        foregroundColor: _textPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: submitting
+                          ? SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: _textPrimary,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              "Submit Assessment",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: _textPrimary,
+                              ),
+                            ),
                     ),
-                    child: submitting
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text("Submit Assessment"),
                   ),
-                ),
-              );
-            } else if (index == questions.length + 1) {
-              // ✅ New Save & Exit button
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: saveDraftAndExit,
-                    icon: const Icon(Icons.save, color: Colors.red),
-                    label: const Text(
-                      "Save & Exit",
-                      style: TextStyle(color: Colors.red),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.red, width: 1.5),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                );
+              } else if (index == questions.length + 1) {
+                // ✅ New Save & Exit button
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: saveDraftAndExit,
+                      icon: Icon(Icons.save, color: _accentRed),
+                      label: Text(
+                        "Save & Exit",
+                        style: TextStyle(color: _accentRed),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: _accentRed, width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              );
-            }
+                );
+              }
 
-            final q = questions[index];
-            final String questionText =
-                q['question'] ?? "Question not available";
-            final List options = q['options'] ?? [];
+              final q = questions[index];
+              final String questionText =
+                  q['question'] ?? "Question not available";
+              final List options = q['options'] ?? [];
 
-            return Card(
-              color: Colors.white,
-              elevation: 3,
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: Colors.red, width: 1),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Q${index + 1}: $questionText",
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red),
-                    ),
-                    const SizedBox(height: 12),
-                    Column(
-                      children: List.generate(options.length, (i) {
-                        final optionLabel = ["A", "B", "C", "D"][i];
-                        final optionText = options[i];
-                        return RadioListTile<String>(
-                          title: Text(
-                            "$optionLabel. $optionText",
-                            style: const TextStyle(color: Colors.black),
-                          ),
-                          value: optionLabel,
-                          groupValue: answers[index],
-                          onChanged: (val) {
-                            setState(() {
-                              answers[index] = val!;
-                            });
-                          },
-                        );
-                      }),
+              return Container(
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _cardDark,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _accentRed.withOpacity(0.3)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-              ),
-            );
-          },
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Q${index + 1}: $questionText",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Column(
+                        children: List.generate(options.length, (i) {
+                          final optionLabel = ["A", "B", "C", "D"][i];
+                          final optionText = options[i];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              color: _primaryDark.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _accentRed.withOpacity(0.2),
+                              ),
+                            ),
+                            child: RadioListTile<String>(
+                              title: Text(
+                                "$optionLabel. $optionText",
+                                style: TextStyle(color: _textPrimary),
+                              ),
+                              value: optionLabel,
+                              groupValue: answers[
+                                  index], // already prefilled from draft
+                              onChanged: (val) {
+                                setState(() {
+                                  answers[index] = val!;
+                                });
+                              },
+                              activeColor: _accentRed,
+                              tileColor: Colors.transparent,
+                              selectedTileColor: _accentRed.withOpacity(0.1),
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

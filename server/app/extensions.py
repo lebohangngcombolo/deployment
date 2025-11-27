@@ -11,6 +11,10 @@ import redis
 import firebase_admin
 from flask_socketio import SocketIO
 from flask_bcrypt import Bcrypt
+# In app/extensions.py
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from app.utils.password_validator import PasswordValidator
 
 # ------------------- Flask Extensions -------------------
 db = SQLAlchemy()
@@ -19,7 +23,7 @@ mail = Mail()
 migrate = Migrate()
 oauth = OAuth()  # <-- Authlib OAuth
 cors = CORS()
-
+validator = PasswordValidator()   # ← IMPORTANT
 bcrypt = Bcrypt()
 
 # ------------------- Cloudinary Client -------------------
@@ -43,6 +47,8 @@ cloudinary_client = CloudinaryClient()
 # ------------------- MongoDB Client -------------------
 mongo_client = MongoClient('mongodb://localhost:27017/')
 mongo_db = mongo_client['recruitment_cv']
+
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ------------------- Redis Client -------------------

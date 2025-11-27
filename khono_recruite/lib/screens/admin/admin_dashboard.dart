@@ -93,7 +93,7 @@ class _AdminDAshboardState extends State<AdminDAshboard>
   Uint8List? _profileImageBytes;
   String _profileImageUrl = "";
   final ImagePicker _picker = ImagePicker();
-  final String apiBase = "https://d694eb53771c.ngrok-free.app/api/candidate";
+  final String apiBase = "http://127.0.0.1:5000/api/candidate";
 
   @override
   void initState() {
@@ -212,8 +212,7 @@ class _AdminDAshboardState extends State<AdminDAshboard>
       final token = await AuthService.getAccessToken();
 
       final res = await http.get(
-        Uri.parse(
-            "https://d694eb53771c.ngrok-free.app/api/admin/recent-activities"),
+        Uri.parse("http://127.0.0.1:5000/api/admin/recent-activities"),
         headers: {"Authorization": "Bearer $token"},
       );
 
@@ -243,8 +242,7 @@ class _AdminDAshboardState extends State<AdminDAshboard>
     try {
       final token = await AuthService.getAccessToken();
       final res = await http.get(
-        Uri.parse(
-            "https://d694eb53771c.ngrok-free.app/api/admin/powerbi/status"),
+        Uri.parse("http://127.0.0.1:5000/api/admin/powerbi/status"),
         headers: {"Authorization": "Bearer $token"},
       );
 
@@ -279,8 +277,7 @@ class _AdminDAshboardState extends State<AdminDAshboard>
               "${auditEndDate!.year}-${auditEndDate!.month.toString().padLeft(2, '0')}-${auditEndDate!.day.toString().padLeft(2, '0')}",
         if (auditSearchQuery != null) "q": auditSearchQuery!,
       };
-      final uri = Uri.http("https://d694eb53771c.ngrok-free.app",
-          "/api/admin/audits", queryParams);
+      final uri = Uri.http("127.0.0.1:5000", "/api/admin/audits", queryParams);
       final res =
           await http.get(uri, headers: {"Authorization": "Bearer $token"});
 
@@ -1525,7 +1522,7 @@ class _AdminDAshboardState extends State<AdminDAshboard>
                   "Histogram",
                   style: TextStyle(
                     fontFamily: 'Poppins',
-                    color: const Color.fromARGB(255, 153, 26, 26),
+                    color: const Color.fromRGBO(153, 26, 26, 1),
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),

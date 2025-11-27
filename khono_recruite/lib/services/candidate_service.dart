@@ -21,7 +21,7 @@ class CandidateService {
   static Future<List<Map<String, dynamic>>> getAvailableJobs(
       String token) async {
     final response = await http.get(
-      Uri.parse("https://d694eb53771c.ngrok-free.app/api/candidate/jobs"),
+      Uri.parse("http://127.0.0.1:5000/api/candidate/jobs"),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',

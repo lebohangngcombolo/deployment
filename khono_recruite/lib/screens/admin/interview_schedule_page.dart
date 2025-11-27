@@ -35,7 +35,7 @@ class _ScheduleInterviewPageState extends State<ScheduleInterviewPage> {
   Future<void> fetchApplications() async {
     try {
       final res = await AuthService.authorizedGet(
-          "https://d694eb53771c.ngrok-free.app/api/admin/applications?candidate_id=${widget.candidateId}");
+          "http://127.0.0.1:5000/api/admin/applications?candidate_id=${widget.candidateId}");
       if (res.statusCode == 200) {
         setState(() => applications = json.decode(res.body));
       } else {
@@ -94,7 +94,7 @@ class _ScheduleInterviewPageState extends State<ScheduleInterviewPage> {
 
     try {
       final res = await http.post(
-        Uri.parse("https://d694eb53771c.ngrok-free.app/api/admin/interviews"),
+        Uri.parse("http://127.0.0.1:5000/api/admin/interviews"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token",

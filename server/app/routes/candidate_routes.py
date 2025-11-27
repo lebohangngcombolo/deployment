@@ -60,6 +60,15 @@ def apply_job(job_id):
         )
         db.session.add(application)
         db.session.commit()
+        
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Applied for Job",
+            target_user_id=user_id,
+            details=f"Applied for job ID {job_id}",
+            extra_data={"job_id": job_id, "application_id": application.id}
+        )
 
         return jsonify({"message": "Applied successfully!", "application_id": application.id}), 201
 
@@ -73,6 +82,9 @@ def apply_job(job_id):
 @role_required(["candidate"])
 def get_available_jobs():
     try:
+        # Get the candidate's user ID from JWT
+        user_id = get_jwt_identity()
+
         jobs = Requisition.query.all()
         result = []
 
@@ -94,6 +106,15 @@ def get_available_jobs():
                 "vacancy": str(job.vacancy or 0),
                 "created_by": job.created_by
             })
+
+        # Audit log (candidate viewed jobs)
+        AuditService.record_action(
+            admin_id=user_id,          # user_id is the candidate ID
+            action="Candidate Viewed Available Jobs",
+            target_user_id=user_id,
+            details="Retrieved list of available jobs"
+        )
+
         return jsonify(result), 200
 
     except Exception as e:
@@ -136,7 +157,8 @@ def upload_resume(application_id):
                 resume_text += page.get_text()
 
         # --- Hybrid Resume Analysis ---
-        parser_result = HybridResumeAnalyzer.analyse_resume(resume_text, job.id)
+        analyzer = HybridResumeAnalyzer()
+        parser_result = analyzer.analyse(resume_text, job.id)
 
         # --- Save results ---
         application.resume_url = resume_url
@@ -154,6 +176,20 @@ def upload_resume(application_id):
             )
             db.session.add(notif)
         db.session.commit()
+        
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Uploaded Resume",
+            target_user_id=user_id,
+            details=f"Uploaded resume for application ID {application_id}",
+            extra_data={
+                "application_id": application_id,
+                "job_id": job.id,
+                "cv_score": parser_result.get("match_score", 0),
+                "recommendation": parser_result.get("recommendation", "")
+            }
+        )
 
         return jsonify({
             "message": "Resume uploaded and analyzed",
@@ -193,6 +229,14 @@ def get_applications():
                 "overall_score": app.overall_score,
                 "recommendation": app.recommendation
             })
+            
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Viewed Applications",
+            target_user_id=user_id,
+            details="Retrieved list of candidate applications"
+        )
         return jsonify(result)
     except Exception as e:
         current_app.logger.error(f"Get applications error: {e}", exc_info=True)
@@ -210,6 +254,15 @@ def get_assessment(application_id):
             return jsonify({"error": "Unauthorized"}), 403
 
         result = AssessmentResult.query.filter_by(application_id=application.id).first()
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Viewed Assessment",
+            target_user_id=user_id,
+            details=f"Viewed assessment for application ID {application_id}",
+            extra_data={"application_id": application_id, "job_title": application.requisition.title if application.requisition else None}
+        )
+
         return jsonify({
             "job_title": application.requisition.title if application.requisition else None,
             "assessment_pack": application.requisition.assessment_pack if application.requisition else {},
@@ -269,6 +322,20 @@ def submit_assessment(application_id):
         application.status = "assessment_submitted"
         application.assessed_date = datetime.utcnow()
         db.session.commit()
+        
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Submitted Assessment",
+            target_user_id=user_id,
+            details=f"Submitted assessment for application ID {application_id}",
+            extra_data={
+                "application_id": application_id,
+                "assessment_score": percentage_score,
+                "overall_score": application.overall_score,
+                "recommendation": result.recommendation
+            }
+        )
 
         return jsonify({
             "message": "Assessment submitted",
@@ -351,6 +418,15 @@ def update_profile():
                 setattr(user, key, value)
 
         db.session.commit()
+        
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Updated Profile",
+            target_user_id=user_id,
+            details="Updated candidate profile information",
+            extra_data={"updated_fields": list(data.keys())}
+        )
 
         return jsonify({
             "success": True,
@@ -392,6 +468,15 @@ def upload_document():
 
         candidate.cv_url = url
         db.session.commit()
+        
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Uploaded Document",
+            target_user_id=user_id,
+            details="Uploaded candidate document",
+            extra_data={"document_type": filename.rsplit('.', 1)[1].lower(), "filename": filename}
+        )
 
         return jsonify({
             "success": True,
@@ -452,6 +537,14 @@ def upload_profile_picture():
         # ---- Save to candidate profile ----
         candidate.profile_picture = url
         db.session.commit()
+        
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Uploaded Profile Picture",
+            target_user_id=user_id,
+            details="Uploaded new profile picture"
+        )
 
         return jsonify({
             "success": True,
@@ -479,6 +572,15 @@ def update_settings():
         user.settings = updated_settings
 
         db.session.commit()
+        
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Updated Settings",
+            target_user_id=user_id,
+            details="Updated general settings",
+            extra_data={"updated_settings": list(data.keys())}
+        )
         return jsonify({
             "success": True,
             "message": "Settings updated successfully",
@@ -583,6 +685,15 @@ def deactivate_account():
 
         user.is_active = False
         db.session.commit()
+        
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Deactivated Account",
+            target_user_id=user_id,
+            details="Candidate deactivated their account",
+            extra_data={"reason": reason}
+        )
 
         current_app.logger.info(f"User {user.email} deactivated account. Reason: {reason}")
         return jsonify({"success": True, "message": "Account deactivated successfully"}), 200
@@ -662,6 +773,15 @@ def save_application_draft(application_id):
         application.saved_at = datetime.utcnow()
 
         db.session.commit()
+        
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Saved Application Draft",
+            target_user_id=user_id,
+            details=f"Saved draft for application ID {application_id}",
+            extra_data={"application_id": application_id, "last_saved_screen": last_saved_screen}
+        )
 
         return jsonify({
             "message": "Draft saved successfully",
@@ -727,6 +847,15 @@ def submit_draft(draft_id):
         draft.status = "applied"
         draft.created_at = datetime.utcnow()
         db.session.commit()
+        
+        # Audit log
+        AuditService.record_action(
+            admin_id=user_id,
+            action="Candidate Submitted Draft Application",
+            target_user_id=user_id,
+            details=f"Submitted draft application ID {draft_id}",
+            extra_data={"draft_id": draft_id, "application_id": draft.id}
+        )
 
         return jsonify({
             "message": "Draft submitted successfully",
@@ -737,4 +866,3 @@ def submit_draft(draft_id):
         current_app.logger.error(f"Submit draft error: {e}", exc_info=True)
         db.session.rollback()
         return jsonify({"error": "Internal server error"}), 500
-
