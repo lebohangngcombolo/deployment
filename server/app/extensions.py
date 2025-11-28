@@ -60,10 +60,14 @@ limiter = Limiter(
 
 
 # ------------------- Redis Client (PRODUCTION SAFE) -------------------
-# Uses REDIS_URL if provided (Render/Upstash), else local
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-redis_client = redis.Redis.from_url(
+r = redis.Redis.from_url(
     REDIS_URL,
-    decode_responses=True
+    decode_responses=True  # match your extensions.py behavior
 )
+
+r.set("foo", "bar")
+value = r.get("foo")
+
+print(value)
