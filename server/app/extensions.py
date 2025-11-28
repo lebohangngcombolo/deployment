@@ -8,6 +8,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from authlib.integrations.flask_client import OAuth  # <-- updated
 import redis
+import os
 import firebase_admin
 from flask_socketio import SocketIO
 from flask_bcrypt import Bcrypt
@@ -45,20 +46,24 @@ class CloudinaryClient:
 cloudinary_client = CloudinaryClient()
 
 # ------------------- MongoDB Client -------------------
-mongo_client = MongoClient('mongodb://localhost:27017/')
-mongo_db = mongo_client['recruitment_cv']
+# Use env var for production, fallback to local for dev
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+mongo_client = MongoClient(MONGO_URI)
+mongo_db = mongo_client.get_database(os.getenv("MONGO_DB_NAME", "recruitment_cv"))
 
-limiter = Limiter(key_func=get_remote_address)
 
-
-# ------------------- Redis Client -------------------
-redis_client = redis.Redis(
-    host='localhost',  # update if using a different host
-    port=6379,         # default Redis port
-    db=0,
-    decode_responses=True  # makes Redis return strings instead of bytes
+# ------------------- Rate Limiter -------------------
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["100 per minute"]  # optional default rate
 )
 
 
+# ------------------- Redis Client (PRODUCTION SAFE) -------------------
+# Uses REDIS_URL if provided (Render/Upstash), else local
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-
+redis_client = redis.Redis.from_url(
+    REDIS_URL,
+    decode_responses=True
+)
