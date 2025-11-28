@@ -62,12 +62,17 @@ limiter = Limiter(
 # ------------------- Redis Client (PRODUCTION SAFE) -------------------
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-r = redis.Redis.from_url(
-    REDIS_URL,
-    decode_responses=True  # match your extensions.py behavior
-)
-
-r.set("foo", "bar")
-value = r.get("foo")
-
-print(value)
+try:
+    redis_client = redis.Redis.from_url(
+        REDIS_URL,
+        decode_responses=True
+    )
+    # Optional: test connection immediately
+    redis_client.ping()
+except Exception as e:
+    print(f"Warning: Could not connect to Redis: {e}")
+    # Fallback dummy client to prevent import errors
+    class DummyRedis:
+        def __getattr__(self, name):
+            raise RuntimeError("Redis client not configured properly.")
+    redis_client = DummyRedis()

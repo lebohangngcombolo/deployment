@@ -4,6 +4,7 @@ from app.models import User
 from flask import current_app
 import jwt
 from datetime import datetime, timedelta
+from app.extensions import redis_client
 import pyotp
 from flask_jwt_extended import create_access_token, create_refresh_token
 import secrets
@@ -55,8 +56,6 @@ class AuthService:
     @staticmethod
     def generate_password_reset_token(user_id: int) -> str:
         """Generate JWT token for password reset and store in Redis."""
-        from app.extensions import redis_client  # <- local import to avoid circular import
-
         payload = {
             "user_id": user_id,
             "exp": datetime.utcnow() + timedelta(hours=1),
@@ -65,10 +64,7 @@ class AuthService:
         token = jwt.encode(payload, current_app.config['JWT_SECRET_KEY'], algorithm='HS256')
         if isinstance(token, bytes):
             token = token.decode('utf-8')
-
-        # Store token in Redis for 1 hour
         redis_client.setex(f"password_reset:{token}", 3600, user_id)
-
         return token
 
     @staticmethod
